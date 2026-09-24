@@ -1,0 +1,5 @@
+# tesztek képernyőképei
+test/out/
+# csomagolt bővítmény
+*.zip
+.DS_Store

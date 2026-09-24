@@ -1,0 +1,118 @@
+/* Címek melletti jelvények és a hőtérkép-/szűrés-módok. Minden osztály kvm- előtagú. */
+
+.kvm-badge {
+  display: inline-block;
+  box-sizing: border-box;
+  min-width: 26px;
+  height: 16px;
+  margin: 0 6px 0 2px;
+  padding: 0 5px;
+  border-radius: 8px;
+  font: 600 10px/16px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  text-align: center;
+  vertical-align: 1px;
+  color: #fff;
+  background: #d9dde3;
+  cursor: help;
+  transition: background-color 0.25s ease;
+}
+
+.kvm-badge.kvm-pending {
+  color: transparent;
+  background: linear-gradient(90deg, #e6e9ee 0%, #f3f5f8 50%, #e6e9ee 100%);
+  background-size: 200% 100%;
+  animation: kvm-shimmer 1.2s linear infinite;
+}
+
+.kvm-badge.kvm-in {
+  animation: kvm-pop 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+.kvm-badge.kvm-error {
+  color: #8a1c1c;
+  background: #fbe3e3;
+}
+
+@keyframes kvm-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+@keyframes kvm-pop {
+  from { transform: scale(0.4); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* Hőtérkép: a teljes sor halvány színezése */
+body.kvm-view-bait.kvm-mode-heat .kvm-row {
+  background-color: var(--kvm-tint, transparent) !important;
+  transition: background-color 0.3s ease;
+  border-radius: 3px;
+}
+
+/* Szűrés: a küszöb fölötti címek elhalványulnak vagy eltűnnek */
+body.kvm-view-bait.kvm-mode-filter .kvm-row.kvm-over {
+  opacity: 0.14;
+  transition: opacity 0.3s ease;
+}
+body.kvm-view-bait.kvm-mode-filter .kvm-row.kvm-over:hover {
+  opacity: 0.8;
+}
+body.kvm-view-bait.kvm-mode-filter.kvm-hide .kvm-row.kvm-over {
+  display: none;
+}
+
+/* Az oldalon egyszerre egy nézet hat: kvm-view-pick (válogatás) vagy kvm-view-bait (kattintásvadászat).
+   Válogatás nézetben a pontszámok rejtve vannak. */
+body.kvm-view-pick .kvm-badge {
+  display: none;
+}
+
+/* Témaszűrő és kereső: a nem illő sorok elhalványulnak, a találatok kék jelölést kapnak */
+body.kvm-view-pick .kvm-row.kvm-dim {
+  opacity: 0.14;
+  transition: opacity 0.3s ease;
+}
+body.kvm-view-pick .kvm-row.kvm-dim:hover {
+  opacity: 0.8;
+}
+body.kvm-view-pick .kvm-row.kvm-hit {
+  box-shadow: inset 3px 0 0 #2f6fdb;
+}
+
+/* Szkennervonal pontozás közben (10) */
+.kvm-scan {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  z-index: 2147483645;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  background: linear-gradient(90deg, transparent, rgba(201, 138, 24, 0.9) 30%, rgba(190, 40, 44, 0.9) 70%, transparent);
+  box-shadow: 0 0 14px 3px rgba(201, 138, 24, 0.35);
+}
+.kvm-scan.on {
+  opacity: 1;
+  animation: kvm-sweep 1.3s ease-in-out infinite alternate;
+}
+@keyframes kvm-sweep {
+  from { transform: translateY(0); }
+  to { transform: translateY(calc(100vh - 2px)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kvm-scan.on { animation: none; }
+  .kvm-badge.kvm-in, .kvm-badge.kvm-pending { animation: none; }
+}
+
+/* Oldalsáv: a lap tartalma balra húzódik, hogy a panel ne takarja (szélesség = a panelé a content.js-ben) */
+@media (min-width: 900px) {
+  html.kvm-docked {
+    margin-right: 360px !important;
+  }
+}

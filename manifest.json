@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "Zajszűrő – hírválogató és kattintásvadász-mérő",
+  "short_name": "Zajszűrő",
+  "version": "0.5.0",
+  "description": "Bármely hírportálon kiválogatja a híreket az érdeklődésed és témák szerint, és megméri, mennyire kattintásvadász egy cím. A hirkereso.hu-n és a hirstart.hu-n magától indul. TypeSafe Jev. Nyílt forrású (MIT) – Cziczlavicz Péter.",
+  "author": "Cziczlavicz Péter",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "Zajszűrő megnyitása ezen az oldalon",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png"
+    }
+  },
+  "options_page": "options.html",
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.hirkereso.hu/*",
+        "https://hirkereso.hu/*",
+        "https://www.hirstart.hu/*",
+        "https://hirstart.hu/*"
+      ],
+      "js": [
+        "src/content.js"
+      ],
+      "css": [
+        "src/content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": [
+    "storage",
+    "contextMenus",
+    "scripting",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://api.typesafe.ai/*"
+  ]
+}
