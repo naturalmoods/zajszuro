@@ -19,6 +19,8 @@ A bővítmény a TypeSafe **Jev** modelljével pontoz, ehhez saját API-kulcs ke
 
 **Próba valódi oldalakon, kulcs nélkül:** `node test/sites.mjs https://telex.hu/ https://24.hu/` – headless Chromiumban, szimulált Jev-válaszokkal végigpróbálja a címfelismerést, a gépelést, a válogatást és a nézetváltást; a képernyőképek a `test/out/` mappába kerülnek.
 
+**Régi és új Jev-kérdések összevetése:** `TYPESAFE_API_KEY=ts_... node test/compare.mjs` – 30 rögzített valódi címen lefuttatja a v1-es és a jelenlegi kérdéseket, és kiírja a valódi tokenszámot, a költséget és az eredmények egyezését (pontszám, téma, hangvétel, válogatás).
+
 **Gyors próba böngésző nélkül:** `TYPESAFE_API_KEY=ts_... node test/jev.mjs` – három mintacímet pontoz 1 és 4 kérdéssel is, kiírja a két időt, és ellenőrzi, hogy a tényszerű cím kapja a legkevesebb pontot.
 
 ## Működés
@@ -29,8 +31,8 @@ A bővítmény a TypeSafe **Jev** modelljével pontoz, ehhez saját API-kulcs ke
   - Bármely más oldal: hírcím az a látható link, amely nincs menüben, fejlécben, láblécben vagy oldalsávban, és a szövege (vagy a benne lévő címsor szövege) 20–220 karakteres, legalább 3 szavas, főleg betűkből álló mondat. A „Tovább a …”, feliratkozós és webshopos linkek kimaradnak. Legfeljebb 600 cím oldalanként.
 - A Hírkereső a hosszú címeket levágja („…”). Ezért a cikk URL-jéből kinyert részlet (`url_hint`) is kimegy, azzal az utasítással, hogy csak a levágott cím kiegészítésére használja.
 - Először a képernyőn látható címek mennek, az eredmények folyamatosan jelennek meg.
-- A pontszámok 48 órán át a böngészőben tárolódnak (címazonosító + modell + promptverzió szerint), így újratöltéskor azonnal megvannak. **Újramérés gyorsítótár nélkül** (Sebesség fül) = a tárolt eredmények figyelmen kívül hagyása.
-- Minden cím 4 kérdéssel megy ki egy hívásban: kattintásvadászat, érzelmi töltet, hangvétel és téma.
+- A pontszámok 48 órán át a böngészőben tárolódnak, **a cím szövege** (+ modell + promptverzió) szerint: így újratöltéskor, és ha ugyanaz a hír másik oldalon is szerepel, azonnal megvannak, új hívás nélkül. Az egy oldalon többször szereplő azonos cím is csak egyszer megy ki. **Újramérés gyorsítótár nélkül** (Sebesség fül) = a tárolt eredmények figyelmen kívül hagyása.
+- Minden cím 4 kérdéssel megy ki egy hívásban: kattintásvadászat, érzelmi töltet, hangvétel és téma. **Költségtakarékosan:** a Jev a bemeneti tokenekért számláz, a címlista egyszer, minden kérdés külön számít. Ezért a téma-, hangvétel- és érzelemkérdés rövid, a válogatásnál az érdeklődés és a feladat leírása egyszer megy a hívásban, és a cikk URL-jéből vett részlet csak a levágott („…”) címeknél megy ki. A kattintásvadász-kérdés szándékosan a teljes, eredeti formájában maradt: a tömörített változat mérhetően másképp pontozott. Mérve (30 valódi címen, `test/compare.mjs`): a pontozás 22%-kal, a válogatás 50%-kal kevesebb token, mint az 1.1.0-ban, a kattintásvadász-szint 93%-ban egyezik a régivel (a Jev önmagával 97%-ban).
 
 ## A panel
 

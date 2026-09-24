@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Zajszűrő – hírválogató és kattintásvadász-mérő",
   "short_name": "Zajszűrő",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Bármely hírportálon kiválogatja a híreket az érdeklődésed és témák szerint, és megméri, mennyire kattintásvadász egy cím. A hirkereso.hu-n és a hirstart.hu-n magától indul. TypeSafe Jev. Nyílt forrású (MIT) – Cziczlavicz Péter.",
   "author": "Cziczlavicz Péter",
   "icons": {

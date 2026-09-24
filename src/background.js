@@ -23,6 +23,14 @@ async function getSettings() {
   return { ...DEFAULTS, ...s };
 }
 
+// kisbetűs, egységes szóközű cím rövid hash-e (a levágott „…” cím külön kulcs, mert más a válasz)
+function titleKey(title) {
+  const t = title.toLowerCase().replace(/\s+/g, " ").trim();
+  let h = 5381;
+  for (let i = 0; i < t.length; i++) h = (h * 33) ^ t.charCodeAt(i);
+  return `t${(h >>> 0).toString(36)}${t.length.toString(36)}`;
+}
+
 async function readCache(keys) {
   const got = await chrome.storage.local.get(keys);
   const now = Date.now();
@@ -75,8 +83,10 @@ async function run(port, msg, signal) {
     post({ type: "fatal", message: "Nincs megadva TypeSafe API-kulcs. Beállítások: kattints a bővítmény ikonjára." });
     return;
   }
-  // "x": az extra kérdésekkel együtt tárolt válasz
-  const keyOf = (id) => `c:${PROMPT_VERSION}x:ts:${cfg.model}:${id}`;
+  // A kulcs a cím szövege (nem az oldal saját azonosítója), így ugyanaz a hír másik oldalon
+  // (pl. hirstart és telex) vagy aloldalon már a gyorsítótárból jön. Az „x”: az extra kérdésekkel együtt.
+  const keyOf = (it) => `c:${PROMPT_VERSION}x:ts:${cfg.model}:${titleKey(it.title)}`;
+  const itemById = new Map(items.map((it) => [it.id, it]));
   const batchSize = Math.max(1, Math.min(50, Number(cfg.batchSize) || 10));
   const concurrency = Math.max(1, Math.min(16, Number(cfg.concurrency) || 6));
 
@@ -86,16 +96,25 @@ async function run(port, msg, signal) {
 
   let todo = items;
   if (!force) {
-    const hits = await readCache(items.map((it) => keyOf(it.id)));
+    const hits = await readCache(items.map(keyOf));
     const cached = [];
     todo = [];
     for (const it of items) {
-      const h = hits[keyOf(it.id)];
+      const h = hits[keyOf(it)];
       if (h) cached.push({ ...h, id: it.id, cached: true });
       else todo.push(it);
     }
     if (cached.length) post({ type: "results", results: cached });
   }
+
+  // az oldalon többször szereplő, azonos című hír csak egyszer megy ki; a válasz mindegyik példányé lesz
+  const dupes = new Map();
+  todo = todo.filter((it) => {
+    const k = keyOf(it);
+    if (dupes.has(k)) return dupes.get(k).push(it.id), false;
+    return dupes.set(k, []), true;
+  });
+  const withDupes = (results) => results.flatMap((r) => [r, ...(dupes.get(keyOf(itemById.get(r.id))) || []).map((id) => ({ ...r, id }))]);
 
   const chunks = [];
   for (let i = 0; i < todo.length; i += batchSize) chunks.push(todo.slice(i, i + batchSize));
@@ -118,21 +137,21 @@ async function run(port, msg, signal) {
         const t = Date.now();
         for (const r of ok) {
           const { id, ...rest } = r;
-          toStore[keyOf(id)] = { t, r: rest };
+          toStore[keyOf(itemById.get(id))] = { t, r: rest };
         }
         if (ok.length && !interest) await chrome.storage.local.set(toStore);
-        post({ type: "results", results });
+        post({ type: "results", results: withDupes(results) });
       } catch (e) {
         if (signal.aborted) return;
         post({ type: "req", req: { ...req, e: Date.now(), ok: false } });
         errors++;
         lastError = e.message;
-        post({ type: "results", results: chunk.map((it) => ({ id: it.id, error: e.message })) });
+        post({ type: "results", results: withDupes(chunk.map((it) => ({ id: it.id, error: e.message }))) });
         // kulcs- vagy kéréshiba esetén nincs értelme a többi csomagot is elküldeni
         if ([401, 403, 404, 422].includes(e.status)) {
           const rest = chunks.slice(next).flat();
           next = chunks.length;
-          if (rest.length) post({ type: "results", results: rest.map((it) => ({ id: it.id, error: e.message })) });
+          if (rest.length) post({ type: "results", results: withDupes(rest.map((it) => ({ id: it.id, error: e.message }))) });
         }
       }
     }

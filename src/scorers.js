@@ -1,24 +1,25 @@
 // Pontozó: TypeSafe (Jev).
 // Visszaad: { results: [{ id, score (0–100), level (0–4), confidence, probs, [emotion, tone, topic] }] (hibánál { id, error }),
 //             tokens: a hívás bemeneti tokenjei (ebből számolható a költség) }
+//
+// Költség: a Jev a bemeneti tokenekért számláz; a `state` egyszer számít, minden kérdés külön.
+// A kattintásvadász-kérdés szándékosan a teljes, v1-es formájában marad (definíció a kérdésben, hosszú szintleírások):
+// a tömörített változat a test/compare.mjs mérésén 73–80%-ban egyezett a régivel, a zajszint 97% volt.
+// A témát, a hangvételt, az érzelmet és a válogatást tömörítettük: ott az egyezés 90–100%.
+// A kérdések szövege szándékosan angol (a TypeSafe nem ír magyar támogatásról).
 
-export const PROMPT_VERSION = "v1";
+export const PROMPT_VERSION = "v2";
 
-// 5 fokú skála – a TypeSafe Score kérdés szintjei.
+// a válogatás feladatleírása hivatkozik rá
+const URL_HINT_NOTE = "`url_hint` (only present when a title was cut off with '...') is the article's URL slug; use it only to complete the title.";
+
+// 5 fokú skála – a TypeSafe Score kérdés szintjei (a v1-es, mért változat; ne rövidítsd mérés nélkül)
 export const LEVELS = [
   "Informative: the headline states the concrete news fact plainly (who / what happened). No hook.",
   "Mostly informative: the fact is clear, with some emotional or attention-grabbing wording.",
   "Mixed: the topic is clear, but a key detail is deliberately held back or exaggerated.",
   "Clickbait: relies on a curiosity gap or sensational framing; the reader must click to learn what actually happened.",
   "Extreme clickbait: a vague teaser with little or no factual content (shock, 'you won't believe', 'this is why', 'here is what happened').",
-];
-
-export const LEVEL_LABELS_HU = [
-  "Tényszerű",
-  "Többnyire tényszerű",
-  "Vegyes",
-  "Kattintásvadász",
-  "Erősen kattintásvadász",
 ];
 
 const INSTRUCTION = (ref) =>
@@ -28,7 +29,15 @@ const INSTRUCTION = (ref) =>
   "vague forward references (e.g. 'kiderült', 'mutatjuk', 'eláruljuk', 'ezt', 'így', 'ez az oka'), or addressing the reader directly to provoke a click. " +
   "A headline that plainly reports a fact is not clickbait, even if the topic is dramatic.";
 
-// Extra szempontok (6): ugyanabban a hívásban, címenként +3 kérdés. Párhuzamosan futnak, alig lassítanak.
+export const LEVEL_LABELS_HU = [
+  "Tényszerű",
+  "Többnyire tényszerű",
+  "Vegyes",
+  "Kattintásvadász",
+  "Erősen kattintásvadász",
+];
+
+// Extra szempontok: ugyanabban a hívásban, címenként +3 kérdés. Párhuzamosan futnak, alig lassítanak.
 export const TONES = { negative: "Negatív", neutral: "Semleges", positive: "Pozitív" };
 export const TOPICS = {
   politics: "Politika",
@@ -41,40 +50,26 @@ export const TOPICS = {
   other: "Egyéb",
 };
 
-const EXTRA_QUESTIONS = (ref) => ({
-  e: {
-    type: "score",
-    instructions: `How emotionally charged is the wording of the Hungarian news headline ${ref}? Judge the words, not the topic.`,
-    criteria: [
-      "Neutral, matter-of-fact wording.",
-      "Mild emotion: some evaluative or colorful words.",
-      "Strong emotion: dramatic, outraged, fearful or ecstatic wording.",
-      "Extreme: the headline is built around shock, outrage or fear.",
-    ],
-  },
-  t: {
-    type: "choice",
-    instructions: `Is the news reported in the Hungarian headline ${ref} good, bad or neutral news?`,
-    criteria: {
-      negative: "Bad news: conflict, crime, disaster, loss, criticism, decline.",
-      neutral: "Neither clearly good nor bad.",
-      positive: "Good news: success, help, improvement, celebration.",
+const QUESTIONS = (ref, extras) => ({
+  h: { type: "score", instructions: INSTRUCTION(ref), criteria: LEVELS },
+  ...(extras && {
+    e: {
+      type: "score",
+      instructions: `How emotionally charged is the wording (not the topic) of ${ref}?`,
+      criteria: ["Neutral", "Mild", "Strong", "Shock, outrage or fear"],
     },
-  },
-  c: {
-    type: "choice",
-    instructions: `What is the main topic of the Hungarian news headline ${ref}?`,
-    criteria: {
-      politics: "Hungarian or international politics, government, elections, war and diplomacy.",
-      economy: "Economy, business, prices, taxes, finance, jobs.",
-      crime: "Crime, police, courts, accidents, disasters.",
-      sport: "Sport.",
-      celebrity: "Celebrities, TV, gossip, royals.",
-      lifestyle: "Health, food, home, travel, relationships, horoscope.",
-      science: "Technology, science, cars, gadgets, nature.",
-      other: "None of the above.",
+    t: {
+      type: "choice",
+      instructions: `Is ${ref} good, bad or neutral news?`,
+      criteria: { negative: "Bad news", neutral: "Neither", positive: "Good news" },
     },
-  },
+    c: {
+      type: "choice",
+      instructions: `Main topic of ${ref}?`,
+      // a magától értetődő kategóriák leírás nélkül (null), csak a határesetek kapnak pár szót
+      criteria: { politics: null, economy: null, crime: "incl. accidents", sport: null, celebrity: "incl. TV, gossip", lifestyle: "health, food, travel", science: "tech, science, cars", other: null },
+    },
+  }),
 });
 
 // Jev ára a docs.typesafe.ai/models szerint (2026-09, jev-1.13): 0,042 USD millió bemeneti tokenenként,
@@ -86,22 +81,14 @@ const inputTokens = (data) => (data && data.usage && typeof data.usage.input_tok
 
 const toScore100 = (s) => Math.round(Math.max(0, Math.min(4, s)) * 25);
 
+// A cikk URL-jéből vett részlet csak a levágott („…”) címeknél kell, máshol csak a tokent viszi.
+export const isCut = (title) => /(\.\.\.|…)\s*$/.test(title);
+const headline = (it) => (it.hint && isCut(it.title) ? { title: it.title, url_hint: it.hint } : { title: it.title });
+
 // ---------------------------------------------------------------- TypeSafe
 
-export async function scoreWithTypeSafe(items, cfg, signal) {
-  const single = items.length === 1;
-  const state = single
-    ? { title: items[0].title, url_hint: items[0].hint || "" }
-    : { headlines: items.map((it) => ({ title: it.title, url_hint: it.hint || "" })) };
-
-  const questions = {};
-  items.forEach((it, i) => {
-    const ref = single ? "in the state" : `\`headlines[${i}]\``;
-    questions[`h${i}`] = { type: "score", instructions: INSTRUCTION(ref), criteria: LEVELS };
-    if (cfg.extras) for (const [k, q] of Object.entries(EXTRA_QUESTIONS(ref))) questions[`${k}${i}`] = q;
-  });
-
-  const body = { state, model: cfg.model || "jev-latest", questions };
+// Egy hívás a Jev-hez. Visszaadja a nyers választ ({ answers, usage, … }).
+export async function askJev(state, questions, cfg, signal) {
   const res = await fetchWithRetry(
     "https://api.typesafe.ai/v1/systemone",
     {
@@ -110,12 +97,21 @@ export async function scoreWithTypeSafe(items, cfg, signal) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${cfg.apiKey}`,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ state, model: cfg.model || "jev-latest", questions }),
       signal,
     },
     [429, 529, 500, 502, 503]
   );
-  const data = await res.json();
+  return res.json();
+}
+
+export async function scoreWithTypeSafe(items, cfg, signal) {
+  const state = { headlines: items.map(headline) };
+  const questions = {};
+  items.forEach((it, i) => {
+    for (const [k, q] of Object.entries(QUESTIONS(`\`headlines[${i}]\``, cfg.extras))) questions[`${k}${i}`] = q;
+  });
+  const data = await askJev(state, questions, cfg, signal);
   return { results: parseTypeSafe(items, data), tokens: inputTokens(data) };
 }
 
@@ -142,42 +138,30 @@ export function parseTypeSafe(items, data) {
 // ---------------------------------------------------------------- érdeklődés szerinti kereső
 
 // Címenként egy igen/nem kérdés: érdekelné-e az olvasót, akit a szabad szavas `interest` érdekel.
+// Az érdeklődés és a feladat leírása egyszer megy a state-ben, a címenkénti kérdés csak hivatkozik rájuk.
 // Visszaad: { results: [{ id, match (0–1) }] (hibánál { id, error }), tokens }.
 export async function matchInterest(items, interest, cfg, signal) {
-  const single = items.length === 1;
-  const state = single ? { title: items[0].title, url_hint: items[0].hint || "" } : { headlines: items.map((it) => ({ title: it.title, url_hint: it.hint || "" })) };
+  const state = {
+    reader_interest: interest,
+    task:
+      "A reader described their interest in `reader_interest` (possibly in Hungarian). For each Hungarian news headline, decide whether " +
+      "the article is clearly about that interest or closely related to it. " + URL_HINT_NOTE,
+    headlines: items.map(headline),
+  };
   const questions = {};
   items.forEach((it, i) => {
-    const ref = single ? "the headline in the state" : `\`headlines[${i}]\``;
-    questions[`m${i}`] = {
-      type: "noul",
-      instructions: {
-        reader_interest: interest,
-        question: `A reader described their interest in \`reader_interest\` (possibly in Hungarian). Is the Hungarian news article behind ${ref} about something this reader would want to read? \`url_hint\` is the article's URL slug and may help when the title is vague or cut off.`,
-      },
-      criteria: {
-        true: "The article is clearly about the reader's interest or closely related to it.",
-        false: "The article is about something else.",
-      },
-    };
+    questions[`m${i}`] = { type: "noul", instructions: `Per \`task\`: does \`headlines[${i}]\` match \`reader_interest\`?` };
   });
-  const res = await fetchWithRetry(
-    "https://api.typesafe.ai/v1/systemone",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.apiKey}` },
-      body: JSON.stringify({ state, model: cfg.model || "jev-latest", questions }),
-      signal,
-    },
-    [429, 529, 500, 502, 503]
-  );
-  const data = await res.json();
-  const answers = data.answers || {};
-  const results = items.map((it, i) => {
+  const data = await askJev(state, questions, cfg, signal);
+  return { results: parseInterest(items, data), tokens: inputTokens(data) };
+}
+
+export function parseInterest(items, data) {
+  const answers = (data && data.answers) || {};
+  return items.map((it, i) => {
     const a = answers[`m${i}`];
     return a && typeof a.noul === "number" ? { id: it.id, match: a.noul } : { id: it.id, error: "hiányzó válasz" };
   });
-  return { results, tokens: inputTokens(data) };
 }
 
 // ---------------------------------------------------------------- közös
