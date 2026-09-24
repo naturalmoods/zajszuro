@@ -5,7 +5,7 @@ Saját szerver nélkül: minden a böngészőben fut, a hívások közvetlenül 
 
 ## Telepítés
 
-1. Töltsd le a tárolót (**Code → Download ZIP**, majd csomagold ki), vagy: `git clone <a tároló címe>`.
+1. Töltsd le a legfrissebb kiadást a [Releases](https://github.com/naturalmoods/zajszuro/releases/latest) oldalról (`zajszuro-<verzió>.zip`), és csomagold ki. Vagy: `git clone https://github.com/naturalmoods/zajszuro.git`.
 2. Chrome → `chrome://extensions` → jobb felül **Fejlesztői mód** be.
 3. **Kicsomagolt bővítmény betöltése** → válaszd ki ezt a mappát.
 4. Nyisd meg a https://www.hirkereso.hu/ vagy a https://www.hirstart.hu/ oldalt, vagy bármely hírportálon kattints a bővítmény ikonjára (újabb kattintás: elrejti / megnyitja).
@@ -71,4 +71,4 @@ A panel a jobb szélen egy teljes magasságú oldalsáv, a lap tartalma balra h�
 
 ## Licenc
 
-[MIT-licenc](LICENSE) – szabadon használható, módosítható és terjeszthető, akár üzleti célra is. Az egyetlen feltétel, hogy a szerzői jogi megjegyzés (© Cziczlavicz Péter) maradjon meg a kódban vagy a leírásban. Ha felhasználod, örülünk, ha szólsz, vagy megemlíted a Zajszűrőt a projektedben.
+MIT-licenc ([eredeti angol szöveg](LICENSE), [magyar fordítás](LICENSE.hu.md)) – szabadon használható, módosítható és terjeszthető, akár üzleti célra is. Az egyetlen feltétel, hogy a szerzői jogi megjegyzés (© Cziczlavicz Péter) maradjon meg a kódban vagy a leírásban. Ha felhasználod, örülünk, ha szólsz, vagy megemlíted a Zajszűrőt a projektedben.

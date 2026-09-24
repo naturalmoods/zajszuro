@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-"Zajszűrő": a Manifest V3 Chrome extension for news sites. It auto-runs on hirkereso.hu and hirstart.hu; on any other page, clicking the toolbar icon injects it (`chrome.scripting`, activeTab), and clicking again toggles the panel via `window.__kvmToggle`. It picks headlines matching a free-text interest, filters by topic, and scores headlines from 0 (factual) to 100 (heavy clickbait). It's built for the Hungarian market, with no backend: every user brings their own TypeSafe key. Everything user-facing is Hungarian, and so are code comments, the README, `LICENSE` (a Hungarian translation of MIT) and commit messages; this file stays in English. The Jev prompts in `src/scorers.js` are deliberately English, because TypeSafe doesn't claim Hungarian support. Author: Cziczlavicz Péter.
+"Zajszűrő": a Manifest V3 Chrome extension for news sites. It auto-runs on hirkereso.hu and hirstart.hu; on any other page, clicking the toolbar icon injects it (`chrome.scripting`, activeTab), and clicking again toggles the panel via `window.__kvmToggle`. It picks headlines matching a free-text interest, filters by topic, and scores headlines from 0 (factual) to 100 (heavy clickbait). It's built for the Hungarian market, with no backend: every user brings their own TypeSafe key. Everything user-facing is Hungarian, and so are code comments, the README, `LICENSE.hu.md` (a Hungarian translation of the MIT `LICENSE`, which stays in English so GitHub detects it) and commit messages; this file stays in English. The Jev prompts in `src/scorers.js` are deliberately English, because TypeSafe doesn't claim Hungarian support. Author: Cziczlavicz Péter.
 
 ## Development
 
