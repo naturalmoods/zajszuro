@@ -13,6 +13,7 @@ async function load() {
   $("model").value = s.model;
   $("batchSize").value = s.batchSize;
   $("concurrency").value = s.concurrency;
+  $("usdHuf").value = s.usdHuf;
 }
 
 $("save").addEventListener("click", async () => {
@@ -22,6 +23,7 @@ $("save").addEventListener("click", async () => {
     model: $("model").value.trim() || DEFAULTS.model,
     batchSize: Math.max(1, Math.min(50, Number($("batchSize").value) || DEFAULTS.batchSize)),
     concurrency: Math.max(1, Math.min(16, Number($("concurrency").value) || DEFAULTS.concurrency)),
+    usdHuf: Number($("usdHuf").value) > 0 ? Number($("usdHuf").value) : DEFAULTS.usdHuf,
   });
   if (!apiKey) msg("Mentve, de API-kulcs nélkül nem fog pontozni.", "err");
   else msg("Mentve. Töltsd újra a Hírkereső oldalt.", "ok");

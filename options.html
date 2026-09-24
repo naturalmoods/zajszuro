@@ -39,7 +39,10 @@
         <label class="f">Modell <input type="text" id="model"></label>
         <label class="f">Címek hívásonként <input type="number" id="batchSize" min="1" max="50"><small>1 = minden cím külön hívás (pontosabb, több kérés)</small></label>
       </div>
-      <label class="f">Párhuzamos hívások <input type="number" id="concurrency" min="1" max="16"><small>429-es hibánál csökkentsd</small></label>
+      <div class="two">
+        <label class="f">Párhuzamos hívások <input type="number" id="concurrency" min="1" max="16"><small>429-es hibánál csökkentsd</small></label>
+        <label class="f">USD/HUF árfolyam <input type="number" id="usdHuf" min="1" step="0.01"><small>a költség forintos kijelzéséhez</small></label>
+      </div>
     </div>
   </div>
 

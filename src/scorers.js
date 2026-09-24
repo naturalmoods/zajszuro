@@ -1,5 +1,6 @@
 // Pontozó: TypeSafe (Jev).
-// Visszaad: [{ id, score (0–100), level (0–4), confidence, probs, [emotion, tone, topic] }], hibánál { id, error }.
+// Visszaad: { results: [{ id, score (0–100), level (0–4), confidence, probs, [emotion, tone, topic] }] (hibánál { id, error }),
+//             tokens: a hívás bemeneti tokenjei (ebből számolható a költség) }
 
 export const PROMPT_VERSION = "v1";
 
@@ -76,6 +77,13 @@ const EXTRA_QUESTIONS = (ref) => ({
   },
 });
 
+// Jev ára a docs.typesafe.ai/models szerint (2026-09, jev-1.13): 0,042 USD millió bemeneti tokenenként,
+// a kimenet ingyenes. Ha a TypeSafe árat változtat, ezt kell átírni.
+export const USD_PER_MTOK = 0.042;
+
+// a hívás által elhasznált bemeneti tokenek (a válasz usage mezőjéből), vagy null
+const inputTokens = (data) => (data && data.usage && typeof data.usage.input_tokens === "number" ? data.usage.input_tokens : null);
+
 const toScore100 = (s) => Math.round(Math.max(0, Math.min(4, s)) * 25);
 
 // ---------------------------------------------------------------- TypeSafe
@@ -108,7 +116,7 @@ export async function scoreWithTypeSafe(items, cfg, signal) {
     [429, 529, 500, 502, 503]
   );
   const data = await res.json();
-  return parseTypeSafe(items, data);
+  return { results: parseTypeSafe(items, data), tokens: inputTokens(data) };
 }
 
 export function parseTypeSafe(items, data) {
@@ -134,7 +142,7 @@ export function parseTypeSafe(items, data) {
 // ---------------------------------------------------------------- érdeklődés szerinti kereső
 
 // Címenként egy igen/nem kérdés: érdekelné-e az olvasót, akit a szabad szavas `interest` érdekel.
-// Visszaad: [{ id, match (0–1) }], hibánál { id, error }.
+// Visszaad: { results: [{ id, match (0–1) }] (hibánál { id, error }), tokens }.
 export async function matchInterest(items, interest, cfg, signal) {
   const single = items.length === 1;
   const state = single ? { title: items[0].title, url_hint: items[0].hint || "" } : { headlines: items.map((it) => ({ title: it.title, url_hint: it.hint || "" })) };
@@ -163,11 +171,13 @@ export async function matchInterest(items, interest, cfg, signal) {
     },
     [429, 529, 500, 502, 503]
   );
-  const answers = (await res.json()).answers || {};
-  return items.map((it, i) => {
+  const data = await res.json();
+  const answers = data.answers || {};
+  const results = items.map((it, i) => {
     const a = answers[`m${i}`];
     return a && typeof a.noul === "number" ? { id: it.id, match: a.noul } : { id: it.id, error: "hiányzó válasz" };
   });
+  return { results, tokens: inputTokens(data) };
 }
 
 // ---------------------------------------------------------------- közös

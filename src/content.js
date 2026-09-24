@@ -157,6 +157,11 @@
     lanes: 6,
     batchSize: 10,
     qpc: 1, // kérdés/cím az utolsó futásban (idővonal)
+    // költség: a background a start üzenetben küldi az árat és az árfolyamot
+    usdPerMtok: 0.042,
+    usdHuf: 320,
+    mainTokens: 0, // az oldal pontozásának bemeneti tokenjei
+    pageTokens: 0, // minden hívás ezen az oldalon (pontozás, újramérés, keresések)
     job: "", // mit mutat az idővonal
     interest: null, // kereső: { query, hits: Map id → 0–1, run, t0, ms, done }
     labels: { levels: [], tones: {}, topics: {} },
@@ -365,6 +370,14 @@
     .tl i.run { background:#b9bfc9; }
     .tl i.bad { background:#c0392b; }
     .tlm { font-size:11px; color:#4b5260; margin-top:6px; line-height:1.45; }
+    .calls { list-style:none; margin:0; padding:0; max-height:220px; overflow-y:auto; font-size:11.5px; font-variant-numeric: tabular-nums; }
+    .calls li { display:grid; grid-template-columns: 1fr auto; gap:8px; align-items:center; padding:4px 0; border-bottom:1px solid #f2f4f7; color:#4b5260; }
+    .calls li .m { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .calls li .c { text-align:right; line-height:1.25; }
+    .calls li .c b { color:#16181d; font-weight:600; }
+    .calls li .c small { display:block; color:#9aa1ad; font-size:10.5px; }
+    .u { color:#9aa1ad; }
+    .calls li.bad { color:#8a1c1c; }
     .tlm b { color:#16181d; font-variant-numeric: tabular-nums; }
     .seg { display:grid; grid-template-columns: repeat(3,1fr); background:#f2f4f7; border-radius:8px; padding:3px; gap:3px; }
     .seg button { all:unset; cursor:pointer; text-align:center; font-size:12px; padding:5px 0; border-radius:6px; color:#4b5260; }
@@ -473,6 +486,11 @@
           <div class="axis"><span>0 s</span><span id="tlEnd"></span></div>
           <div class="tlm" id="tlm"></div>
         </div>
+        <div class="sec">
+          <div class="h"><span>Költség hívásonként</span><b id="costSum"></b></div>
+          <ol class="calls" id="calls"></ol>
+          <div class="tlm" id="cost"></div>
+        </div>
         <div class="sec acts">
           <button class="btn" id="rerun">Újramérés gyorsítótár nélkül</button>
           <button class="btn" id="big" hidden>Nagy teszt: ~950 cím</button>
@@ -561,6 +579,7 @@
       $("tlEnd").textContent = "";
       $("tlm").textContent = state.done && state.mainDone ? "Minden cím a gyorsítótárból jött, nem kellett hívás." : "";
       $("rate").textContent = "–";
+      renderCosts([]);
       return;
     }
     const end = Math.max(...reqs.map((q) => q.e || now));
@@ -570,7 +589,8 @@
         const left = ((q.s - state.base) / span) * 100;
         const w = Math.max(0.6, (((q.e || now) - q.s) / span) * 100);
         const cls = !q.e ? "run" : q.ok ? "" : "bad";
-        return `<i class="${cls}" style="left:${left}%;width:max(1px, calc(${w}% - 2px));top:${2 + (q.slot % lanes) * 7}px" title="${q.n} cím · ${q.e ? q.e - q.s + " ms" : "folyamatban"}"></i>`;
+        const cost = q.tokens != null ? ` · ${fmtTok(q.tokens)} token · ${fmtCost(q.tokens)}` : "";
+        return `<i class="${cls}" style="left:${left}%;width:max(1px, calc(${w}% - 2px));top:${2 + (q.slot % lanes) * 7}px" title="${q.n} cím · ${q.e ? q.e - q.s + " ms" : "folyamatban"}${cost}"></i>`;
       })
       .join("");
     $("tlEnd").textContent = fmtSec(span);
@@ -584,6 +604,46 @@
     const scored = doneReqs.reduce((a, q) => a + q.n, 0);
     const secs = (end - state.base) / 1000;
     $("rate").textContent = scored && secs > 0 ? String(Math.round(scored / secs)) : "–";
+    renderCosts(reqs);
+  }
+
+  // ------------------------------------------------------------ költség
+
+  const fmtTok = (t) => t.toLocaleString("hu-HU");
+  const usdOf = (t) => (t * state.usdPerMtok) / 1e6;
+  const fmtFt = (t) => {
+    const ft = usdOf(t) * state.usdHuf;
+    return `${ft >= 1 ? ft.toLocaleString("hu-HU", { maximumFractionDigits: 1 }) : ft.toLocaleString("hu-HU", { maximumSignificantDigits: 2 })} Ft`;
+  };
+  const fmtUsd = (t) => `${usdOf(t).toLocaleString("hu-HU", { maximumSignificantDigits: 3 })} USD`;
+  const fmtCost = (t) => `${fmtFt(t)} (${fmtUsd(t)})`;
+
+  // hívásonkénti lista (legújabb felül) és összesítés a Sebesség fülön
+  function renderCosts(reqs) {
+    setHtml(
+      "calls",
+      reqs
+        .map((q, i) => {
+          const meta = `<span class="u">#${i + 1}</span> · ${q.n} cím · ${q.e ? q.e - q.s + " ms" : "…"}${q.tokens != null ? ` · ${fmtTok(q.tokens)} token` : ""}`;
+          const cost = !q.e
+            ? `<span class="u">folyamatban</span>`
+            : !q.ok
+              ? "hiba"
+              : q.tokens == null
+                ? `<span class="u">nincs adat</span>`
+                : `<b>${fmtFt(q.tokens)}</b><small>${fmtUsd(q.tokens)}</small>`;
+          return `<li class="${q.e && !q.ok ? "bad" : ""}"><span class="m">${meta}</span><span class="c">${cost}</span></li>`;
+        })
+        .reverse()
+        .join("")
+    );
+    const tok = reqs.reduce((a, q) => a + (q.tokens || 0), 0);
+    $("costSum").textContent = reqs.length ? fmtFt(tok) : "";
+    $("cost").innerHTML = reqs.length
+      ? `Ez a futás (${esc(state.job || "")}): <b>${fmtTok(tok)} token · ${fmtCost(tok)}</b><br>` +
+        `Ezen az oldalon összesen: <b>${fmtCost(state.pageTokens)}</b><br>` +
+        `<span class="u">Ár: ${state.usdPerMtok.toLocaleString("hu-HU")} USD / millió bemeneti token (TypeSafe Jev), 1 USD = ${state.usdHuf.toLocaleString("hu-HU")} Ft</span>`
+      : "";
   }
 
   // ------------------------------------------------------------ buborék a jelvényen (12)
@@ -646,7 +706,7 @@
     setHtml(
       "hitsum",
       I.done
-        ? `<span><b>${hits.length}</b> találat · ${I.hits.size} címből · <b>${fmtSec(I.ms)}</b></span>${clear}`
+        ? `<span><b>${hits.length}</b> találat · ${I.hits.size} címből · <b>${fmtSec(I.ms)}</b> · ${fmtCost(I.tokens)}</span>${clear}`
         : `<span>Jev válogat… <b>${I.hits.size}</b>/${state.items.length} · ${hits.length} találat</span>${clear}`
     );
     setHtml(
@@ -718,8 +778,8 @@
         $("status").innerHTML = !state.mainDone
           ? `Jev pontoz… <b>${scored.length}</b>/${total} cím`
           : allCached
-            ? `<b>${total}</b> cím · gyorsítótárból`
-            : `<b>${total}</b> cím pontozva · <b>${fmtSec(elapsed)}</b> alatt`;
+            ? `<b>${total}</b> cím · gyorsítótárból · 0 Ft`
+            : `<b>${total}</b> cím pontozva · <b>${fmtSec(elapsed)}</b> alatt · ${fmtCost(state.mainTokens)}`;
       }
       for (const b of root.querySelectorAll(".tabs button")) {
         const on = b.dataset.tab === state.ui.tab;
@@ -880,7 +940,7 @@
     const query = $("q").value.trim();
     if (!query) return;
     cancelInterest();
-    state.interest = { query, hits: new Map(), t0: performance.now(), ms: 0, done: false };
+    state.interest = { query, hits: new Map(), t0: performance.now(), ms: 0, done: false, tokens: 0 };
     state.interest.run = send(visibleFirst(), false, "interest", query);
     if (!state.interest.run) state.interest = null;
     applyFilters();
@@ -938,6 +998,8 @@
       state.labels = msg.labels || state.labels;
       state.lanes = msg.concurrency;
       state.batchSize = msg.batchSize;
+      if (msg.usdPerMtok) state.usdPerMtok = msg.usdPerMtok;
+      if (msg.usdHuf) state.usdHuf = msg.usdHuf;
       // a kereső saját idővonalat kap, hogy a saját ideje látszódjon
       if (run.kind === "interest") {
         state.reqs.clear();
@@ -951,6 +1013,12 @@
       }
     } else if (msg.type === "req") {
       state.reqs.set(msg.req.id, msg.req);
+      const t = msg.req.e && msg.req.tokens;
+      if (t) {
+        state.pageTokens += t;
+        if (run.kind === "main") state.mainTokens += t;
+        if (run.kind === "interest" && state.interest && state.interest.run === msg.run) state.interest.tokens += t;
+      }
     } else if (msg.type === "results" && run.kind === "interest") {
       for (const r of msg.results) {
         const it = state.byId.get(r.id);
@@ -1050,6 +1118,7 @@
     state.reqs.clear();
     state.base = 0;
     state.mainDone = false;
+    state.mainTokens = 0;
     state.lastError = null;
     state.notice = null;
     state.cachedCount = 0;

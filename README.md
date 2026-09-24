@@ -15,6 +15,7 @@ A bővítmény a TypeSafe **Jev** modelljével pontoz, ehhez saját API-kulcs ke
 **Hangolás:**
 - *Címek hívásonként* (alapból 10): egy hívásban ennyi cím megy, mindegyik saját kérdéssel. Az `1` minden címet külön hívásban küld: a dokumentáció szerint ez pontosabb lehet, cserébe ~450 kérés megy ki.
 - *Párhuzamos hívások* (alapból 6): 429-es hibánál csökkentsd.
+- *USD/HUF árfolyam* (alapból 320): a költség forintos kijelzéséhez.
 
 **Próba valódi oldalakon, kulcs nélkül:** `node test/sites.mjs https://telex.hu/ https://24.hu/` – headless Chromiumban, szimulált Jev-válaszokkal végigpróbálja a címfelismerést, a gépelést, a válogatást és a nézetváltást; a képernyőképek a `test/out/` mappába kerülnek.
 
@@ -45,6 +46,7 @@ A panel a jobb szélen egy teljes magasságú oldalsáv, a lap tartalma balra h�
 
 **Sebesség**
 - A címek száma, a teljes idő és a cím/s.
+- **Költség hívásonként**: minden Jev-hívás sora (címszám, idő, token, forint és dollár), alatta az aktuális futás és az oldalon eddig elköltött összeg. A költség a válaszban kapott bemeneti tokenszámból számolódik a TypeSafe árlistája szerint (0,042 USD / millió bemeneti token, a kimenet ingyenes; `USD_PER_MTOK` a `src/scorers.js`-ben). A pontozás költsége az állapotsorban, a válogatásé a találatszám mellett is látszik.
 - **Jev-hívások idővonala**: minden API-hívás egy csík a párhuzamos sávokban, alatta a hívásszám, a medián válaszidő és a hívásonkénti kérdésszám. Keresés után a keresés hívásait mutatja.
 - **Újramérés gyorsítótár nélkül**, és a Hírstarton **Nagy teszt**: átvisz az „Összes mai hír” oldalra (~950 cím).
 

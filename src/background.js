@@ -1,5 +1,5 @@
 import { DEFAULTS } from "./settings.js";
-import { PROMPT_VERSION, LEVEL_LABELS_HU, TONES, TOPICS, scoreWithTypeSafe, matchInterest } from "./scorers.js";
+import { PROMPT_VERSION, LEVEL_LABELS_HU, TONES, TOPICS, USD_PER_MTOK, scoreWithTypeSafe, matchInterest } from "./scorers.js";
 
 
 const CACHE_TTL_MS = 48 * 3600 * 1000;
@@ -82,7 +82,7 @@ async function run(port, msg, signal) {
 
   const call = interest ? (c) => matchInterest(c, String(msg.query).slice(0, 500), cfg, signal) : (c) => scoreWithTypeSafe(c, cfg, signal);
 
-  post({ type: "start", at: Date.now(), provider: `TypeSafe · ${cfg.model}`, labels: LABELS, batchSize, concurrency, qpc: interest ? 1 : 4 });
+  post({ type: "start", at: Date.now(), provider: `TypeSafe · ${cfg.model}`, labels: LABELS, batchSize, concurrency, qpc: interest ? 1 : 4, usdPerMtok: USD_PER_MTOK, usdHuf: Number(cfg.usdHuf) || 0 });
 
   let todo = items;
   if (!force) {
@@ -111,8 +111,8 @@ async function run(port, msg, signal) {
       const req = { id: `${runId}:${k}`, slot, n: chunk.length, s: Date.now() };
       post({ type: "req", req });
       try {
-        const results = await call(chunk);
-        post({ type: "req", req: { ...req, e: Date.now(), ok: true } });
+        const { results, tokens } = await call(chunk);
+        post({ type: "req", req: { ...req, e: Date.now(), ok: true, tokens } });
         const ok = results.filter((r) => !r.error);
         const toStore = {};
         const t = Date.now();
@@ -162,9 +162,11 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (!cfg.apiKey) return show({ text, error: "Nincs megadva TypeSafe API-kulcs. Beállítások: kattints a bővítmény ikonjára." });
   const t0 = performance.now();
   try {
-    const [r] = await scoreWithTypeSafe([{ id: "sel", title: text, hint: "" }], { ...cfg, extras: true });
+    const { results: [r], tokens } = await scoreWithTypeSafe([{ id: "sel", title: text, hint: "" }], { ...cfg, extras: true });
     const ms = Math.round(performance.now() - t0);
-    show(r.error ? { text, error: r.error } : { text, r, ms, model: cfg.model, labels: LABELS });
+    const usd = tokens == null ? null : (tokens * USD_PER_MTOK) / 1e6;
+    const huf = usd == null ? null : usd * (Number(cfg.usdHuf) || 0);
+    show(r.error ? { text, error: r.error } : { text, r, ms, tokens, usd, huf, model: cfg.model, labels: LABELS });
   } catch (e) {
     show({ text, error: e.message });
   }
@@ -223,7 +225,7 @@ function showToast(p) {
         ${r.topic ? `<dt>Téma</dt><dd>${esc(L.topics[r.topic] || r.topic)}</dd>` : ""}
         ${r.confidence != null ? `<dt>Biztosság</dt><dd>${r.confidence.toFixed(2).replace(".", ",")}</dd>` : ""}
       </dl>
-      <div class="muted">${esc(p.model)} · 4 kérdés · <b>${p.ms} ms</b></div>`;
+      <div class="muted">${esc(p.model)} · 4 kérdés · <b>${p.ms} ms</b>${p.tokens != null ? `<br>${p.tokens.toLocaleString("hu-HU")} token · <b>${p.huf.toLocaleString("hu-HU", { maximumSignificantDigits: 2 })} Ft</b> (${p.usd.toLocaleString("hu-HU", { maximumSignificantDigits: 3 })} USD)` : ""}</div>`;
   }
   host.shadowRoot.innerHTML = `
     <style>
